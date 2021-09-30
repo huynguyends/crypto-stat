@@ -334,7 +334,7 @@ summary(lm_TSLA)
 # Residual Standard Error
 sigma(lm_TSLA)/mean(trainset$BTC.USD.Close, na.rm=TRUE)
 ```
-
+#abc
 ```{r SLR_TSLA_RMSE}
 library(Metrics)
 
