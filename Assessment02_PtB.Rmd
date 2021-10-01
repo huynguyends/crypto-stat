@@ -156,7 +156,7 @@ fit1 = lm(data = df_BTCTSLA_TDlag_m, y_value1 ~ x_value1)
 summary(fit1)
 ggplot(df_BTCTSLA_TDlag_m, aes(x = x_value1, y = y_value1)) +
   geom_point() +
-  xlab("TSLA 90 trading days lag") + 
+  xlab("TSLA 1 trading days lag") + 
   ylab("log(Bitcoin closing)") + 
   stat_smooth(method = 'lm', col = 'red') + 
   labs(title = paste("Adj R2=", signif(summary(fit1)$adj.r.squared, 5),
@@ -177,7 +177,7 @@ fit2 = lm(data = df_BTCTSLA_TDlag_m, y_value2 ~ x_value2)
 summary(fit2)
 ggplot(df_BTCTSLA_TDlag_m, aes(x = x_value2, y = y_value2)) +
   geom_point() +
-  xlab("TSLA 60 trading days lag") + 
+  xlab("TSLA 1 trading days lag") + 
   ylab("Bitcoin closing") + 
   stat_smooth(method = 'lm', col = 'red') + 
   labs(title = paste("Adj R2=", signif(summary(fit2)$adj.r.squared, 5),
@@ -334,13 +334,13 @@ signif(summary(m_fit_adjusted_filtered)$adj.r.squared, 5)
 
 ```{r SLR_sampling}
 # sampling train, validation and test sets
-trainset_size <- floor(0.7 * nrow(df_port))
-validation_size <- floor(0.1 * nrow(df_port))
-testset_size <- floor(0.2 * nrow(df_port))
+trainset_size <- floor(0.7 * nrow(df_port_price))
+validation_size <- floor(0.1 * nrow(df_port_price))
+testset_size <- floor(0.2 * nrow(df_port_price))
 set.seed(2)
-trainset_indices <- sample(seq_len(nrow(df_port)), size = trainset_size)
-trainset <- df_port[trainset_indices, ]
-df_set <- df_port[-trainset_indices, ]
+trainset_indices <- sample(seq_len(nrow(df_port_price)), size = trainset_size)
+trainset <- df_port_price[trainset_indices, ]
+df_set <- df_port_price[-trainset_indices, ]
 testset_indices <- sample(seq_len(nrow(df_set)), size = testset_size)
 testset <- df_set[testset_indices, ]
 validationset <- df_set[-testset_indices,]
@@ -353,7 +353,7 @@ summary(lm_TSLA)
 
 ```{r stepwise_leaps}
 library(leaps)
-models <- regsubsets(BTC.USD.Close ~., data = df_port, nvmax = 5,
+models <- regsubsets(BTC.USD.Close ~., data = trainset, nvmax = 5,
                      method = "seqrep")
 summary(models)
 ```
@@ -362,7 +362,7 @@ summary(models)
 library(caret)
 train.control <- trainControl(method = "cv", number = 10)
 # use the data without volume
-step.model <- train(BTC.USD.Close ~., data = na.omit(df_port_price),
+step.model <- train(BTC.USD.Close ~., data = na.omit(trainset),
                     method = "leapBackward", 
                     tuneGrid = data.frame(nvmax = 1:5),
                     trControl = train.control
@@ -383,7 +383,7 @@ summary(step.model)
 
 ```{r stepwise_MASS_caret}
 # Train the model
-step.model <- train(BTC.USD.Close ~., data = na.omit(df_port),
+step.model <- train(BTC.USD.Close ~., data = na.omit(trainset),
                     method = "lmStepAIC", 
                     trControl = train.control,
                     trace = FALSE
@@ -394,5 +394,7 @@ step.model$results
 step.model$finalModel
 # Summary of the model
 summary(step.model$finalModel)
+
+VIF(step.model)
 ```
 
