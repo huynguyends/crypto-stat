@@ -320,9 +320,9 @@ corrplot(df_port_price_cor, method="number")
 ```
 
 ```{r multi_linear}
-m_fit <- lm(`BTC.USD.Close` ~ . -date,
-            data = df_port_price)
-summary(m_fit)
+#m_fit <- lm(`BTC.USD.Close` ~ . -date,
+#            data = df_port_price)
+#summary(m_fit)
 ```
 
 ```{r multi_linear_stars}
@@ -375,57 +375,118 @@ ggplot(trainset, aes(x=TSLA.Close, y=BTC.USD.Close)) +
 ```
 
 ```{r stepwise_leaps}
-library(leaps)
-models <- regsubsets(BTC.USD.Close ~.,
-                     data = subset(trainset, select=-(date)),
-                     nvmax = 8,
-                     method = "seqrep")
-summary(models)
+#library(leaps)
+#models <- regsubsets(BTC.USD.Close ~.,
+#                     data = subset(trainset, select=-(date)),
+#                     nvmax = 8,
+#                     method = "seqrep")
+#summary(models)
 ```
-
+```{r cor}
+df_selected_cor <- cor(subset(df_selected, select = -c(date,
+#                                                    BTC_TDlag_1,
+#                                                    BTC_TDlag_5,
+#                                                    BTC_TDlag_10, 
+#                                                    BTC_TDlag_20,
+#                                                    BTC_TDlag_40,
+#                                                    BTC_TDlag_60,
+                                                    ETH.USD.Close,
+                                                    IXIC.Close,
+                                                    GC.F.Close,
+                                                    TSM.Close,
+                                                    BTC_Return)), use="pairwise.complete.obs")
+corrplot(df_selected_cor,method="number")
+```
 ```{r stepwise_caret}
 library(caret)
-train.control <- trainControl(method = "cv", number = 20, p = 0.7)
+train.control <- trainControl(method = "cv", number = 5, p = 0.7)
+df_selected_test <- df_selected[df_selected['date'] >= '2021-09-01',]
+df_selected_train <- df_selected[df_selected['date'] < '2021-09-01',]
 # use the data without volume
 step.model <- train(BTC.USD.Close ~.,
-                    data = na.omit(subset(df_selected,
-                                         select=-c(date,
+                    data = na.omit(subset(df_selected_train,
+                                          select=c(BTC.USD.Close,
                                                    BTC_TDlag_1,
-                                                   BTC_TDlag_5,
-                                                   BTC_TDlag_10,
-                                                   BTC_TDlag_20,
-                                                   BTC_TDlag_40,
-                                                   BTC_TDlag_60,
-ETH.USD.Close,IXIC.Close,GC.F.Close,TSM.Close
-                                                   )
+                                                   ETH_TDlag_1,
+                                                   IXIC_TDlag_5,
+                                                   GOLD_TDlag_60,
+                                                   TSM_TDlag_40)
                                          )
                                  ),
                     method = "leapSeq",#"leapBackward", #"leapSeq", #"leapForward",
-                    tuneGrid = data.frame(nvmax = 1:10),
+                    tuneGrid = data.frame(nvmax = 1:5),
                     trControl = train.control
                     )
-step.model$bestTune
 
+step.model
 summary(step.model$finalModel)
+step.model$bestTune
 #step.model$bestTune
-coef(step.model$finalModel, 8)
+coef(step.model$finalModel, 3)
 
+besttune_lm <- train(BTC.USD.Close ~.  -IXIC_TDlag_5 -GOLD_TDlag_60,
+                    data = na.omit(subset(df_selected_train,
+                                          select=c(BTC.USD.Close,
+                                                   BTC_TDlag_1,
+                                                   ETH_TDlag_1,
+                                                   IXIC_TDlag_5,
+                                                   GOLD_TDlag_60,
+                                                   TSM_TDlag_40)
+                                         )
+                                   ),
+                    method = "lm",
+                    trControl = train.control
+                    )
+coef(besttune_lm$finalModel)
+car::vif(besttune_lm$finalModel) #greedy algorithm
+
+deviance(besttune_lm$finalModel) #compare SSE every elimination
+
+summary(besttune_lm)
+
+prediction <- predict(besttune_lm$finalModel, df_selected_test)
+# RMSE
+RMSE = sqrt(mean((prediction - df_selected_test$BTC.USD.Close)^2, na.rm = TRUE))
+
+RMSE/(mean(df_selected_test$BTC.USD.Close))
+
+```
+                                          select=-c(date,
+                                                    BTC_TDlag_1,
+                                                    BTC_TDlag_5,
+                                                    BTC_TDlag_10, 
+                                                    BTC_TDlag_20,
+                                                    BTC_TDlag_40,
+                                                    BTC_TDlag_60,
+                                                    ETH.USD.Close,
+                                                    IXIC.Close,
+                                                    GC.F.Close,
+                                                    TSM.Close,
+                                                    BTC_Return
+                                                   )
+```{r elimination}
 besttune_lm <- train(BTC.USD.Close ~ ETH_TDlag_1 + 
                        ETH_TDlag_10 + 
                        ETH_TDlag_20 +
                        ETH_TDlag_60 +
                        GOLD_TDlag_20 +
                        TSM_TDlag_20 +
-                       TSM_TDlag_40 + 
+                       TSM_TDlag_40 +
                        TSM_TDlag_60,
-                    data = na.omit(df_selected),
+                    data = na.omit(df_selected_train),
                     method = "lm",
                     trControl = train.control
                     )
+coef(besttune_lm$finalModel)
+
 car::vif(besttune_lm$finalModel) #greedy algorithm
+
 deviance(besttune_lm$finalModel) #compare SSE every elimination
+
 ```
 
+
+# Not in used
 ```{r stepwise_MASS}
 library(MASS)
 full.model <- lm(BTC.USD.Close ~., data = na.omit(subset(df_selected,
