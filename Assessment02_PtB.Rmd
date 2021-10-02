@@ -68,7 +68,7 @@ data <- getSymbols(c(coin_portfolio,
                      index_portfolio,
                      stock_portfolio),
                    src='yahoo',
-                   #from=dyear,
+                   from="2019-12-08",
                    #to=d,
                    autoassign=FALSE)
 ```
@@ -424,7 +424,7 @@ step.model$bestTune
 #step.model$bestTune
 coef(step.model$finalModel, 3)
 
-besttune_lm <- train(BTC.USD.Close ~.  -IXIC_TDlag_5 -GOLD_TDlag_60,
+besttune_lm <- train(BTC.USD.Close ~. -IXIC_TDlag_5 -GOLD_TDlag_60,
                     data = na.omit(subset(df_selected_train,
                                           select=c(BTC.USD.Close,
                                                    BTC_TDlag_1,
@@ -450,6 +450,7 @@ RMSE = sqrt(mean((prediction - df_selected_test$BTC.USD.Close)^2, na.rm = TRUE))
 
 RMSE/(mean(df_selected_test$BTC.USD.Close))
 
+autoplot(besttune_lm$finalModel)
 ```
                                           select=-c(date,
                                                     BTC_TDlag_1,
@@ -482,7 +483,6 @@ coef(besttune_lm$finalModel)
 car::vif(besttune_lm$finalModel) #greedy algorithm
 
 deviance(besttune_lm$finalModel) #compare SSE every elimination
-
 ```
 
 
