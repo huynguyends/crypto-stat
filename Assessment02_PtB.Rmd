@@ -3,8 +3,8 @@ title: "Assessment02_pt_b"
 author: "Xilin Huang Liam"
 date: "20/09/2021"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -223,10 +223,11 @@ df_eda = subset(df_eda, date >'2018-12-31')
 plot_intro(df_eda)
 plot_missing(df_eda)
 ```
+
 ```{r}
-# the 31.5% of missing obersation is resulted from the non-trading data for the stock market in the weekend while cryptocurrencies do not rest in the holidays.  In that case,, the dataset shall be adjusted to trading date instead of calendar day for this research. 
+# the 31.5% of missing obervsation is resulted from the non-trading data for the stock market in the weekend while cryptocurrencies do not rest in the holidays.  In that case,, the dataset shall be adjusted to trading date instead of calendar day for this research. 
 
-
+df_eda = na.omit(df_eda)
 
 ```
 
@@ -239,6 +240,7 @@ plot_boxplot(df_eda, by="BTC.USD.Close")
 plot_histogram(df_eda)
 
 ```
+
 ```{r}
 plot_qq(df_eda)
 ```
@@ -487,7 +489,7 @@ summary(lm_TSLA)
 # Residual Standard Error
 sigma(lm_TSLA)/mean(trainset$BTC.USD.Close, na.rm=TRUE)
 ```
-#abc
+
 ```{r SLR_TSLA_RMSE}
 library(Metrics)
 
