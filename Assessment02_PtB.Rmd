@@ -3,17 +3,16 @@ title: "Assessment02_pt_b"
 author: "Xilin Huang Liam"
 date: "20/09/2021"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Loading data from Yahoo Finance
-Before we starting working on building models and analysis, data need to be loaded from Yahoo Finance API. In our project, we will be collecting:
-
+Data loading: 
+Before we starting working on building models and analysis, data need to be loaded from Yahoo Finance API and Tweet count from Kaggle API. In our project, we will be collecting:
 Coins (to US dollar)
 
 * BTC-USD: Bitcoin
@@ -50,10 +49,76 @@ Stocks
 
 * TSM: Taiwan Semiconductor Manufacturing
 
+Tweet count
+
+* Tweet_volume: number of #bitcoin tweeted
+
 All the data will be saved as `xts` (Extensible Time Series) object.
 
-```{r yahoo, message=FALSE, warning=FALSE}
+## Loading Tweet data from Kaggle
+```{r}
+# incorporate tweet volume data prepared by Huy
 rm(list=ls())
+install.packages(c("devtools"))
+devtools::install_github("ldurazo/kaggler")
+library(readr)
+library(kaggler)
+
+kgl_auth(creds_file = 'kaggle.json')
+response <- kgl_datasets_download_all(owner_dataset = "kaushiksuresh147/bitcoin-tweets")
+download.file(response[1]$url, "temp.zip", mode="wb")
+unzip_result <- unzip("temp.zip")
+
+```
+
+
+```{r}
+
+#install.packages(c("zoo","xts","TTR","quantmod","tidytext","textdata","rvest"))
+library(tidyverse)
+library(lubridate)
+library(tidytext)
+library(textdata)
+library(rvest)
+```
+
+
+```{r}
+
+path = "https://bitinfocharts.com/comparison/decred-tweets.html#1y"
+scripts <- read_html(path, encoding = 'utf8') %>%
+  html_nodes("script") %>% html_text(trim=TRUE)
+
+# filter special characters, get date and tweet volume only
+text <- scripts[5]
+new <- strsplit(text, '\\[\\[')[[1]][[2]]
+new2 <- strsplit(new, '\\]\\]')[[1]][[1]]
+
+new3 <- str_replace_all(new2, 'new Date\\(', '')  %>%
+  str_replace_all('\\[', '') %>%
+  str_replace_all('"', '') %>%
+  str_replace_all('\\]', '') %>%
+  str_replace_all('\\)', '')  
+
+new4 <- strsplit(new3, ',')
+
+# convert list of list into dataframe. Sample input ['2020/05/09',59,...]
+table <- as.data.frame(unlist(new4))
+
+# dataframe now contains only 1 columns, subsetting odd and even rows to split into 2 columns
+
+tweet_volume =  data.frame(date = table[c(TRUE,FALSE),], tweet_count = table[c(FALSE,TRUE),])
+
+# tweet counts is reported as thousands of tweet, here convert it to normal number
+tweet_volume$tweet_count <- as.numeric(tweet_volume$tweet_count)*1000
+tweet_volume$date <- as_date(tweet_volume$date)
+
+write.csv(tweet_volume,"tweet_volume.csv") #in case failed to download the data
+```
+
+## Loading data from Yahoo Finance
+
+```{r yahoo, message=FALSE, warning=FALSE}
 library(zoo)
 library(xts)
 library(TTR)
@@ -84,7 +149,7 @@ df_ETH = data.frame(date=index(`ETH-USD`), coredata(`ETH-USD`))
 df_ADA = data.frame(date=index(`ADA-USD`), coredata(`ADA-USD`))
 df_DOGE = data.frame(date=index(`DOGE-USD`), coredata(`DOGE-USD`))
 df_SHIB = data.frame(date=index(`SHIB-USD`), coredata(`SHIB-USD`))
-# indexs
+# indices
 df_DJI = data.frame(date=index(DJI), coredata(DJI))
 df_IXIC = data.frame(date=index(IXIC), coredata(IXIC))
 df_GSPC = data.frame(date=index(GSPC), coredata(GSPC))
@@ -95,7 +160,97 @@ df_AAPL = data.frame(date=index(AAPL), coredata(AAPL))
 df_NVDA = data.frame(date=index(NVDA), coredata(NVDA))
 df_AMD = data.frame(date=index(AMD), coredata(AMD))
 df_TSM = data.frame(date=index(TSM), coredata(TSM))
+# tweet
+df_tweet = tweet_volume
+
 ```
+
+##EDA
+
+```{r}
+# merge all data into one dataset
+df_eda <- merge(df_BTC, df_TSLA, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_ETH, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_ADA, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_DOGE, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_SHIB, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_DJI, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_IXIC, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_GSPC, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_GOLD, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_GOOG, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_AAPL, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_NVDA, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_AMD, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_TSM, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_tweet, by = 'date', all.x = TRUE)
+df_eda <- df_eda[,c(1,5,11,17,23,29,35,41,47,53,59,65,71,77,83,89,92)]
+```
+
+```{r}
+library(DataExplorer)
+str(df_eda)
+introduce(df_eda)
+plot_intro(df_eda)
+plot_missing(df_eda)
+```
+
+
+#clean name of df_eda
+library(janitor)
+df_eda = clean_names(df_eda)
+names(df_eda)
+
+```{r}
+#drop df_SHIB due high missing 
+drop = c("SHIB.USD.Close")
+
+df_eda <- df_eda %>% 
+  select(-one_of(drop))
+
+plot_intro(df_eda)
+plot_missing(df_eda)
+```
+
+
+```{r}
+#drop df_SHIB due high missing 
+min(df_ADA$date) # ADA has been publicly listed since 2017-10-1
+min(df_tweet$date) # Data soucred from Kaggles is more complete after 2019-01-01
+
+# subset the data from 2019-0-01
+df_eda = subset(df_eda, date >'2018-12-31')
+plot_intro(df_eda)
+plot_missing(df_eda)
+```
+
+```{r}
+# the 31.5% of missing obervsation is resulted from the non-trading data for the stock market in the weekend while cryptocurrencies do not rest in the holidays.  In that case,, the dataset shall be adjusted to trading date instead of calendar day for this research. 
+
+df_eda = na.omit(df_eda)
+
+```
+
+```{r}
+plot_boxplot(df_eda, by="BTC.USD.Close")
+
+```
+
+```{r}
+plot_histogram(df_eda)
+
+```
+
+```{r}
+plot_qq(df_eda)
+```
+
+
+```{r}
+plot_correlation(na.omit(df_eda),type="c")
+
+```
+
 
 ```{r friday_filled, message=FALSE, warning=FALSE}
 library(tidyr)
