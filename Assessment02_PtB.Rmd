@@ -392,8 +392,8 @@ summary(besttune_lm)
 ```{r besttune_lm_RMSE}
 prediction <- predict(besttune_lm$finalModel, df_selected_test)
 # RMSE
-RMSE = sqrt(mean((prediction - df_selected_test$BTC.USD.Close)^2, na.rm = TRUE))
-RMSE/(mean(df_selected_test$BTC.USD.Close))
+sw_RMSE = sqrt(mean((prediction - df_selected_test$BTC.USD.Close)^2, na.rm = TRUE))
+sw_RMSE/(mean(df_selected_test$BTC.USD.Close))
 ```
 
 ```{r besttune_lm_4plots}
@@ -428,8 +428,8 @@ deviance(besttune_lm_VIF$finalModel)
 # not in use since VIF not over 10
 prediction <- predict(besttune_lm_VIF$finalModel, df_selected_test)
 # RMSE
-sw_RMSE = sqrt(mean((prediction - df_selected_test$BTC.USD.Close)^2, na.rm = TRUE))
-sw_RMSE/(mean(df_selected_test$BTC.USD.Close))
+swVIF_RMSE = sqrt(mean((prediction - df_selected_test$BTC.USD.Close)^2, na.rm = TRUE))/(mean(df_selected_test$BTC.USD.Close)) * 100
+swVIF_RMSE
 ```
 
 ```{r besttune_lm_VIF_4plots}
@@ -544,6 +544,6 @@ rsq <- 1 - sse/sst
 rsq
 
 # RMSE
-Lasso_RMSE = sqrt(mean((y_predicted - y2)^2, na.rm = TRUE))
-Lasso_RMSE/(mean(y2))
+Lasso_RMSE = sqrt(mean((y_predicted - y2)^2, na.rm = TRUE))/(mean(y2)) * 100
+Lasso_RMSE
 ```
