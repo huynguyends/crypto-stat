@@ -11,8 +11,8 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Loading data from Yahoo Finance
-Before we starting working on building models and analysis, data need to be loaded from Yahoo Finance API. In our project, we will be collecting:
+## Loading data from Yahoo Finance and Kaggle
+Before we starting working on building models and analysis, data need to be loaded from Yahoo Finance and Kaggle API. In our project, we will be collecting:
 
 Coins (to US dollar)
 
@@ -50,8 +50,11 @@ Stocks
 
 * TSM: Taiwan Semiconductor Manufacturing
 
-All the data will be saved as `xts` (Extensible Time Series) object.
+All the data mentioned above will be saved as `xts` (Extensible Time Series) object.
 
+Twitter count
+
+* Tweet_volume: number of #bitcoin tweeted
 ```{r yahoo, message=FALSE, warning=FALSE}
 rm(list=ls())
 library(zoo)
@@ -64,22 +67,65 @@ coin_portfolio=c("BTC-USD","ETH-USD","ADA-USD",
 index_portfolio=c("^DJI","^IXIC","^GSPC","GC=F")
 stock_portfolio=c("TSLA","GOOG","AAPL","NVDA","AMD","TSM")
 
+# Get the data from the earliest date to now
 data <- getSymbols(c(coin_portfolio,
                      index_portfolio,
                      stock_portfolio),
                    src='yahoo',
-                   from="2019-12-08",
+                   #from="2019-12-08",
                    #to=d,
                    autoassign=FALSE)
 ```
 
-## Simple linear regression in finance data
-For simple linear regression, we will use TSLA - Bitcoin as example. Since this project will be focusing on performing linear regression models, the data will be transformed from `xts` object to `dataframe`. Other data will be transformed to dataframes for multi-linear model analysis based on the result of TSLA - Bitcoin.
+```{r kaggle, message=FALSE, warning=FALSE}
+devtools::install_github("ldurazo/kaggler")
+library(readr)
+library(kaggler)
+library(tidyverse)
+library(lubridate)
+library(tidytext)
+library(textdata)
+library(rvest)
+
+kgl_auth(creds_file = 'kaggle.json')
+
+response <- kgl_datasets_download_all(owner_dataset = "kaushiksuresh147/bitcoin-tweets")
+
+download.file(response[1]$url, "temp.zip", mode="wb")
+unzip_result <- unzip("temp.zip")
+
+path = "https://bitinfocharts.com/comparison/decred-tweets.html#1y"
+
+scripts <- read_html(path, encoding = 'utf8') %>%
+  html_nodes("script") %>% html_text(trim=TRUE)
+
+# filter special characters, get date and tweet volume only
+text <- scripts[5]
+new <- strsplit(text, '\\[\\[')[[1]][[2]]
+new2 <- strsplit(new, '\\]\\]')[[1]][[1]]
+new3 <- str_replace_all(new2, 'new Date\\(', '')  %>%
+  str_replace_all('\\[', '') %>%
+  str_replace_all('"', '') %>%
+  str_replace_all('\\]', '') %>%
+  str_replace_all('\\)', '')  
+new4 <- strsplit(new3, ',')
+
+# convert list of list into dataframe. Sample input ['2020/05/09',59,...]
+table <- as.data.frame(unlist(new4))
+
+# dataframe now contains only 1 columns, subsetting odd and even rows to split into 2 columns
+tweet_volume =  data.frame(date = table[c(TRUE,FALSE),], tweet_count = table[c(FALSE,TRUE),])
+
+# tweet counts is reported as thousands of tweet, here convert it to normal number
+tweet_volume$tweet_count <- as.numeric(tweet_volume$tweet_count)*1000
+tweet_volume$date <- as_date(tweet_volume$date)
+
+write.csv(tweet_volume,"tweet_volume.csv") #in case failed to download the data
+```
 
 ```{r data}
-df_BTC = data.frame(date=index(`BTC-USD`), coredata(`BTC-USD`))
-df_TSLA = data.frame(date=index(TSLA), coredata(TSLA))
 # coins
+df_BTC = data.frame(date=index(`BTC-USD`), coredata(`BTC-USD`))
 df_ETH = data.frame(date=index(`ETH-USD`), coredata(`ETH-USD`))
 df_ADA = data.frame(date=index(`ADA-USD`), coredata(`ADA-USD`))
 df_DOGE = data.frame(date=index(`DOGE-USD`), coredata(`DOGE-USD`))
@@ -90,38 +136,97 @@ df_IXIC = data.frame(date=index(IXIC), coredata(IXIC))
 df_GSPC = data.frame(date=index(GSPC), coredata(GSPC))
 df_GOLD = data.frame(date=index(`GC=F`), coredata(`GC=F`))
 # stock
+df_TSLA = data.frame(date=index(TSLA), coredata(TSLA))
 df_GOOG = data.frame(date=index(GOOG), coredata(GOOG))
 df_AAPL = data.frame(date=index(AAPL), coredata(AAPL))
 df_NVDA = data.frame(date=index(NVDA), coredata(NVDA))
 df_AMD = data.frame(date=index(AMD), coredata(AMD))
 df_TSM = data.frame(date=index(TSM), coredata(TSM))
+# tweet
+df_tweet = tweet_volume
+```
+## EDA
+
+```{r EDA_data_merge}
+# merge all data into one dataset
+df_eda <- merge(df_BTC, df_ETH, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_ADA, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_DOGE, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_SHIB, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_DJI, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_IXIC, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_GSPC, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_GOLD, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_TSLA, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_GOOG, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_AAPL, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_NVDA, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_AMD, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_TSM, by = 'date', all.x = TRUE)
+df_eda <- merge(df_eda, df_tweet, by = 'date', all.x = TRUE)
+df_eda <- df_eda[,c(1,5,11,17,23,29,35,41,47,53,59,65,71,77,83,89,92)]
 ```
 
-```{r friday_filled, message=FALSE, warning=FALSE}
+```{r EDA_1st}
+library(DataExplorer)
+str(df_eda)
+introduce(df_eda)
+plot_intro(df_eda)
+plot_missing(df_eda)
+```
+
+```{r EDA_drop_SHIB}
+# drop SHIB due high missing 
+drop = c("SHIB.USD.Close")
+
+df_eda <- df_eda %>% 
+  select(-one_of(drop))
+
+plot_intro(df_eda)
+plot_missing(df_eda)
+```
+
+```{r EDA_covid_date}
+min(df_ADA$date) # ADA has been publicly listed since 2017-10-1
+min(df_tweet$date) # Data soucred from Kaggles is more complete after 2019
+# subset the data from the time of first covid case
+df_eda = subset(df_eda, date >'2019-12-08')
+plot_intro(df_eda)
+plot_missing(df_eda)
+```
+
+```{r df_tradeday}
+df_eda = na.omit(df_eda) # this will drop weekends to align with stock market trade days
+```
+```{r EDA_boxplot}
+plot_boxplot(df_eda, by="BTC.USD.Close")
+```
+```{r EDA_histogram}
+plot_histogram(df_eda)
+```
+```{r EDA_qqplot}
+plot_qq(df_eda)
+```
+
+```{r EDA_corplot}
+plot_correlation(df_eda,type="c")
+```
+
+```{r cor_pick, message=FALSE, warning=FALSE}
 library(tidyr)
-# use Friday's data for weekends
-df_sub <- merge(df_BTC, df_ETH, by = 'date', all.x = TRUE)
-df_sub <- merge(df_sub, df_IXIC, by = 'date', all.x = TRUE)
-df_sub <- merge(df_sub, df_GOLD, by = 'date', all.x = TRUE)
-df_sub <- merge(df_sub, df_TSM, by = 'date', all.x = TRUE)
-
-#df_sub_filled <- df_sub %>% fill()
-```
-
-```{r 2019, message=FALSE, warning=FALSE}
-# subset data (close price)
-df_sub <- subset(na.omit(df_sub),
-                 #date >= '2019-01-01',
-                 select = c(date,
-                            BTC.USD.Close,
-                            ETH.USD.Close,
-                            GC.F.Close,
-                            IXIC.Close,
-                            TSM.Close
-                            )
+df_sub <- subset(df_eda,
+                 select=c(date,
+                          BTC.USD.Close,
+                          ETH.USD.Close,
+                          GC.F.Close,
+                          IXIC.Close,
+                          TSM.Close,
+                          tweet_count
+                          )
                  )
 row.names(df_sub) <- NULL
 ```
+
 
 ```{r lag_data, message=FALSE, warning=FALSE}
 library(dplyr)
@@ -186,17 +291,54 @@ df_selected <- cbind(df_selected, df_GOLD_TDlag)
 df_selected <- cbind(df_selected, df_TSM_TDlag)
 ```
 
-```{r return_data, echo=TRUE, message=FALSE}
+```{r BTC_return, echo=TRUE, message=FALSE}
 # Bitcoin daily return
 BDReturn <- c(NA, diff(df_selected$BTC.USD.Close)/df_selected$BTC.USD.Close*100)
 BDReturn <- BDReturn[-length(BDReturn)]
 df_selected$BTC_Return <- BDReturn
 ```
 
-```{r lm_model_log, echo=TRUE, warning=FALSE}
+```{r corplot_lag, warning=FALSE}
+library(corrplot)
+df_selected_cor <- cor(subset(df_selected, 
+                              select=-c(date,
+                                        BTC_TDlag_1,
+                                        BTC_TDlag_5,
+                                        BTC_TDlag_10,
+                                        BTC_TDlag_20,
+                                        BTC_TDlag_40,
+                                        BTC_TDlag_60,
+                                        ETH.USD.Close,
+                                        GC.F.Close,
+                                        IXIC.Close,
+                                        TSM.Close,
+                                        BTC_Return
+                                        )
+                              ),
+                       use="pairwise.complete.obs")
+corrplot(df_selected_cor, method="number")
+```
+
+```{r corplot_BTClag, warning=FALSE}
+df_selected_BTCcor <- cor(subset(df_selected, 
+                                 select=c(BTC.USD.Close,
+                                          BTC_TDlag_1,
+                                          BTC_TDlag_5,
+                                          BTC_TDlag_10,
+                                          BTC_TDlag_20,
+                                          BTC_TDlag_40,
+                                          BTC_TDlag_60,
+                                          BTC_Return
+                                          )
+                                 ),
+                          use="pairwise.complete.obs")
+corrplot(df_selected_BTCcor, method="number")
+```
+
+```{r lm_log, echo=TRUE, warning=FALSE}
 library(ggplot2)
 library(ggfortify)
-# Best result at 90 lag days -- log(y) ~ x
+
 x_value1 = log(df_selected$ETH_TDlag_1)
 y_value1 = log(df_selected$BTC.USD.Close)
 fit1 = lm(data = df_selected, y_value1 ~ x_value1)
@@ -213,310 +355,138 @@ ggplot(df_selected, aes(x = x_value1, y = y_value1)) +
                      )
        )
 ```
-```{r lm_model_log_plots, echo=TRUE, warning=FALSE}
+```{r lm_log_4plots, echo=TRUE, warning=FALSE}
 autoplot(fit1)
 ```
 
-```{r correlation_matrix, warning=FALSE}
-library(corrplot)
-df_selected_cor <- cor(subset(df_selected, select = -c(date, 
-                                                       BTC_TDlag_1,
-                                                       BTC_TDlag_5,
-                                                       BTC_TDlag_10,
-                                                       BTC_TDlag_20,
-                                                       BTC_TDlag_40,
-                                                       BTC_TDlag_60)
-                              ),
-                       use="pairwise.complete.obs")
-#corrplot(df_selected_cor, method="pie")
-corrplot(df_selected_cor, method="number")
-```
-
-```{r others}
-# coins data frame
-df_coin = data.frame()
-df_coin = merge(df_BTC, df_ETH, by = 'date', all.x = TRUE)
-df_coin = merge(df_coin, df_ADA, by = 'date', all.x = TRUE)
-df_coin = merge(df_coin, df_DOGE, by = 'date', all.x = TRUE)
-df_coin = merge(df_coin, df_SHIB, by = 'date', all.x = TRUE)
-# indexes data frame
-df_index = data.frame()
-df_index = merge(df_DJI, df_IXIC, by = 'date', all.x = TRUE)
-df_index = merge(df_index, df_GSPC, by = 'date', all.x = TRUE)
-df_index = merge(df_index, df_GOLD, by = 'date', all.x = TRUE)
-# stocks data frame
-df_stock = data.frame()
-df_stock = merge(df_TSLA, df_GOOG, by = 'date', all.x = TRUE)
-df_stock = merge(df_stock, df_AAPL, by = 'date', all.x = TRUE)
-df_stock = merge(df_stock, df_NVDA, by = 'date', all.x = TRUE)
-df_stock = merge(df_stock, df_AMD, by = 'date', all.x = TRUE)
-df_stock = merge(df_stock, df_TSM, by = 'date', all.x = TRUE)
-# merge 3 portfolios data frame
-df_port = data.frame()
-df_port = merge(df_coin, df_index, by = 'date', all.x = TRUE)
-df_port = merge(df_port, df_stock, by = 'date', all.x = TRUE)
-
-# subset
-df_port <- subset(df_port,
-                  #date >= '2019-01-01',
-                  select = c(date, 
-                             BTC.USD.Close, 
-                             BTC.USD.Volume,
-                             ETH.USD.Close, 
-                             ETH.USD.Volume,
-                             ADA.USD.Close, 
-                             ADA.USD.Volume,
-                             DOGE.USD.Close, 
-                             DOGE.USD.Volume,
-                             SHIB.USD.Close, 
-                             SHIB.USD.Volume,
-                             DJI.Close, 
-                             DJI.Volume,
-                             IXIC.Close, 
-                             IXIC.Volume,
-                             GSPC.Close, 
-                             GSPC.Volume,
-                             GC.F.Close, 
-                             GC.F.Volume,
-                             TSLA.Close, 
-                             TSLA.Volume,
-                             GOOG.Close, 
-                             GOOG.Volume,
-                             AAPL.Close, 
-                             AAPL.Volume,
-                             NVDA.Close, 
-                             NVDA.Volume,
-                             AMD.Close, 
-                             AMD.Volume,
-                             TSM.Close, 
-                             TSM.Volume
-                             )
-                  )
-row.names(df_port) <- NULL
-
-
-df_port_price <- subset(df_port,
-                        select = c(date, 
-                                   BTC.USD.Close, 
-                                   ETH.USD.Close, 
-                                   ADA.USD.Close, 
-                                   DOGE.USD.Close, 
-                                   SHIB.USD.Close, 
-                                   DJI.Close,                       
-                                   IXIC.Close, 
-                                   GSPC.Close, 
-                                   GC.F.Close, 
-                                   TSLA.Close, 
-                                   GOOG.Close, 
-                                   AAPL.Close, 
-                                   NVDA.Close, 
-                                   AMD.Close, 
-                                   TSM.Close
-                                   )
-                        )
-
-df_port_price_cor <- cor(subset(df_port_price, select = -c(date)), use="pairwise.complete.obs")
-corrplot(df_port_price_cor, method="number")
-```
-
-```{r multi_linear}
-#m_fit <- lm(`BTC.USD.Close` ~ . -date,
-#            data = df_port_price)
-#summary(m_fit)
-```
-
-```{r multi_linear_stars}
-#m_fit_adjusted <- lm(`BTC.USD.Close` ~ 
-#                       `BTC.USD.Volume` + 
-#                       `ETH.USD.Close` + 
-#                       `ETH.USD.Volume` + 
-#                       `DOGE.USD.Close` +
-#                       `GC.F.Close`,
-#                     data = df_port)
-#summary(m_fit_adjusted)
-# R squared
-#signif(summary(m_fit_adjusted)$adj.r.squared, 5)
-```
-```{r multi_linear_stars_f}
-#m_fit_adjusted_filtered <- lm(`BTC.USD.Close` ~ 
-#                                `BTC.USD.Volume` +
-#                                `ETH.USD.Close` + 
-#                                `DOGE.USD.Close`,
-#                              data = df_port)
-#summary(m_fit_adjusted_filtered)
-# R squared
-#signif(summary(m_fit_adjusted_filtered)$adj.r.squared, 5)
-```
 
 ```{r SLR_sampling}
 # sampling train, validation and test sets (if using stepwise this step could be ignored)
-trainset_size <- floor(0.7 * nrow(df_port_price))
-validation_size <- floor(0.1 * nrow(df_port_price))
-testset_size <- floor(0.2 * nrow(df_port_price))
-set.seed(2)
-trainset_indices <- sample(seq_len(nrow(df_port_price)), size = trainset_size)
-trainset <- df_port_price[trainset_indices, ]
-df_set <- df_port_price[-trainset_indices, ]
+trainset_size <- floor(0.7 * nrow(df_selected))
+validation_size <- floor(0.1 * nrow(df_selected))
+testset_size <- floor(0.2 * nrow(df_selected))
+trainset_indices <- sample(seq_len(nrow(df_selected)), size = trainset_size)
+trainset <- df_selected[trainset_indices, ]
+df_set <- df_selected[-trainset_indices, ]
 testset_indices <- sample(seq_len(nrow(df_set)), size = testset_size)
 testset <- df_set[testset_indices, ]
 validationset <- df_set[-testset_indices,]
 ```
 
-```{r SLR_TSLA_modelling}
-lm_TSLA = lm(formula = BTC.USD.Close ~ TSLA.Close, data = trainset)
-summary(lm_TSLA)
+```{r SLR_logxlogy_modelling}
+lm_ETH = lm(formula = log(BTC.USD.Close) ~ log(ETH_TDlag_1), data = trainset)
+summary(lm_ETH)
 
-testset_selected <- subset(testset, select=c(TSLA.Close,
+testset_selected <- subset(testset, select=c(ETH_TDlag_1,
                                              BTC.USD.Close))
-ggplot(trainset, aes(x=TSLA.Close, y=BTC.USD.Close)) + 
+ggplot(trainset, aes(x=log(ETH_TDlag_1), y=log(BTC.USD.Close))) + 
   geom_point() + 
   geom_point(data=testset_selected,colour='red') + 
   stat_smooth(method = 'lm', col = 'black') 
 ```
 
-```{r stepwise_leaps}
-#library(leaps)
-#models <- regsubsets(BTC.USD.Close ~.,
-#                     data = subset(trainset, select=-(date)),
-#                     nvmax = 8,
-#                     method = "seqrep")
-#summary(models)
-```
-```{r cor}
-df_selected_cor <- cor(subset(df_selected, select = -c(date,
-#                                                    BTC_TDlag_1,
-#                                                    BTC_TDlag_5,
-#                                                    BTC_TDlag_10, 
-#                                                    BTC_TDlag_20,
-#                                                    BTC_TDlag_40,
-#                                                    BTC_TDlag_60,
-                                                    ETH.USD.Close,
-                                                    IXIC.Close,
-                                                    GC.F.Close,
-                                                    TSM.Close,
-                                                    BTC_Return)), use="pairwise.complete.obs")
-corrplot(df_selected_cor,method="number")
-```
 ```{r stepwise_caret}
 library(caret)
+# train control divided data to 5 equal sets for validation use
 train.control <- trainControl(method = "cv", number = 5, p = 0.7)
+# save 2021 Sep and Octo for prediction
 df_selected_test <- df_selected[df_selected['date'] >= '2021-09-01',]
 df_selected_train <- df_selected[df_selected['date'] < '2021-09-01',]
-# use the data without volume
-step.model <- train(BTC.USD.Close ~.,
+# use the lag day data variable picked
+set.seed(1)
+step.model <- train(BTC.USD.Close ~ .,
                     data = na.omit(subset(df_selected_train,
                                           select=c(BTC.USD.Close,
                                                    BTC_TDlag_1,
                                                    ETH_TDlag_1,
-                                                   IXIC_TDlag_5,
+                                                   IXIC_TDlag_40,
                                                    GOLD_TDlag_60,
                                                    TSM_TDlag_40)
                                          )
                                  ),
                     method = "leapSeq",#"leapBackward", #"leapSeq", #"leapForward",
-                    tuneGrid = data.frame(nvmax = 1:5),
+                    tuneGrid = data.frame(nvmax = 1:5), # limit model variables
                     trControl = train.control
                     )
-
 step.model
 summary(step.model$finalModel)
 step.model$bestTune
 #step.model$bestTune
 coef(step.model$finalModel, 3)
+```
 
-besttune_lm <- train(BTC.USD.Close ~. -IXIC_TDlag_5 -GOLD_TDlag_60,
-                    data = na.omit(subset(df_selected_train,
-                                          select=c(BTC.USD.Close,
-                                                   BTC_TDlag_1,
-                                                   ETH_TDlag_1,
-                                                   IXIC_TDlag_5,
-                                                   GOLD_TDlag_60,
-                                                   TSM_TDlag_40)
-                                         )
-                                   ),
+```{r model_replicate}
+set.seed(1)
+besttune_lm <- train(BTC.USD.Close ~ .,
+                     data = na.omit(subset(df_selected_train,
+                                           select=c(BTC.USD.Close,
+                                                    BTC_TDlag_1,
+                                                    ETH_TDlag_1,
+                                                    #IXIC_TDlag_40,
+                                                    #GOLD_TDlag_60,
+                                                    TSM_TDlag_40)
+                                           )
+                                    ),
                     method = "lm",
                     trControl = train.control
                     )
-coef(besttune_lm$finalModel)
-car::vif(besttune_lm$finalModel) #greedy algorithm
 
-deviance(besttune_lm$finalModel) #compare SSE every elimination
+coef(besttune_lm$finalModel)
+
+car::vif(besttune_lm$finalModel) #VIF BTC greater than 10
+
+deviance(besttune_lm$finalModel)
 
 summary(besttune_lm)
+```
 
+```{r besttune_lm_RMSE}
 prediction <- predict(besttune_lm$finalModel, df_selected_test)
 # RMSE
 RMSE = sqrt(mean((prediction - df_selected_test$BTC.USD.Close)^2, na.rm = TRUE))
-
 RMSE/(mean(df_selected_test$BTC.USD.Close))
+```
 
+```{r besttune_lm_4plots}
+# 4 plots
 autoplot(besttune_lm$finalModel)
 ```
-                                          select=-c(date,
-                                                    BTC_TDlag_1,
-                                                    BTC_TDlag_5,
-                                                    BTC_TDlag_10, 
-                                                    BTC_TDlag_20,
-                                                    BTC_TDlag_40,
-                                                    BTC_TDlag_60,
-                                                    ETH.USD.Close,
-                                                    IXIC.Close,
-                                                    GC.F.Close,
-                                                    TSM.Close,
-                                                    BTC_Return
-                                                   )
-```{r elimination}
-besttune_lm <- train(BTC.USD.Close ~ ETH_TDlag_1 + 
-                       ETH_TDlag_10 + 
-                       ETH_TDlag_20 +
-                       ETH_TDlag_60 +
-                       GOLD_TDlag_20 +
-                       TSM_TDlag_20 +
-                       TSM_TDlag_40 +
-                       TSM_TDlag_60,
-                    data = na.omit(df_selected_train),
+
+``` {r model_VIF}
+besttune_lm_VIF <- train(BTC.USD.Close ~ .,
+                         data = na.omit(subset(df_selected_train,
+                                               select=c(BTC.USD.Close,
+                                                        #BTC_TDlag_1,
+                                                        ETH_TDlag_1,
+                                                        #IXIC_TDlag_40,
+                                                        #GOLD_TDlag_60,
+                                                        TSM_TDlag_40)
+                                               )
+                                        ),
                     method = "lm",
                     trControl = train.control
                     )
-coef(besttune_lm$finalModel)
 
-car::vif(besttune_lm$finalModel) #greedy algorithm
+coef(besttune_lm_VIF$finalModel)
 
-deviance(besttune_lm$finalModel) #compare SSE every elimination
+car::vif(besttune_lm_VIF$finalModel)
+
+deviance(besttune_lm_VIF$finalModel)
+```
+
+```{r besttune_lm_VIF_RMSE}
+prediction <- predict(besttune_lm_VIF$finalModel, df_selected_test)
+
+# RMSE
+RMSE = sqrt(mean((prediction - df_selected_test$BTC.USD.Close)^2, na.rm = TRUE))
+RMSE/(mean(df_selected_test$BTC.USD.Close))
+```
+
+```{r besttune_lm_VIF_4plots}
+# 4 plots
+autoplot(besttune_lm_VIF$finalModel)
 ```
 
 
-# Not in used
-```{r stepwise_MASS}
-library(MASS)
-full.model <- lm(BTC.USD.Close ~., data = na.omit(subset(df_selected,
-                                                         select=-c(date,
-                                                                   BTC_TDlag_1,
-                                                                   BTC_TDlag_5,
-                                                                   BTC_TDlag_10,
-                                                                   BTC_TDlag_20,
-                                                                   BTC_TDlag_40,
-                                                                   BTC_TDlag_60)
-                                                         )
-                                                  )
-)
-step.model <- stepAIC(full.model, direction = "both", 
-                      trace = FALSE)
-summary(step.model)
-```
 
-```{r stepwise_MASS_caret}
-# Train the model
-step.model <- train(BTC.USD.Close ~., data = na.omit(trainset),
-                    method = "lmStepAIC", 
-                    trControl = train.control,
-                    trace = FALSE
-                    )
-# Model accuracy
-step.model$results
-# Final model coefficients
-step.model$finalModel
-# Summary of the model
-summary(step.model$finalModel)
-```
 
