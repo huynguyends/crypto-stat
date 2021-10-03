@@ -428,7 +428,7 @@ deviance(besttune_lm_VIF$finalModel)
 # not in use since VIF not over 10
 prediction <- predict(besttune_lm_VIF$finalModel, df_selected_test)
 # RMSE
-swVIF_RMSE = sqrt(mean((prediction - df_selected_test$BTC.USD.Close)^2, na.rm = TRUE))/(mean(df_selected_test$BTC.USD.Close)) * 100
+swVIF_RMSE = sqrt(mean((prediction - df_selected_test$BTC.USD.Close)^2, na.rm = TRUE))
 swVIF_RMSE
 ```
 
@@ -544,6 +544,6 @@ rsq <- 1 - sse/sst
 rsq
 
 # RMSE
-Lasso_RMSE = sqrt(mean((y_predicted - y2)^2, na.rm = TRUE))/(mean(y2)) * 100
+Lasso_RMSE = sqrt(mean((y_predicted - y2)^2, na.rm = TRUE))
 Lasso_RMSE
 ```
