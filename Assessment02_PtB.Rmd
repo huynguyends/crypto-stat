@@ -78,7 +78,6 @@ data <- getSymbols(c(coin_portfolio,
 ```
 
 ```{r kaggle, message=FALSE, warning=FALSE}
-devtools::install_github("ldurazo/kaggler")
 library(readr)
 library(kaggler)
 library(tidyverse)
@@ -335,39 +334,16 @@ df_selected_BTCcor <- cor(subset(df_selected,
 corrplot(df_selected_BTCcor, method="number")
 ```
 
-```{r lm_log, echo=TRUE, warning=FALSE}
-library(ggplot2)
-library(ggfortify)
-
-x_value1 = log(df_selected$ETH_TDlag_1)
-y_value1 = log(df_selected$BTC.USD.Close)
-fit1 = lm(data = df_selected, y_value1 ~ x_value1)
-summary(fit1)
-ggplot(df_selected, aes(x = x_value1, y = y_value1)) +
-  geom_point() +
-  xlab("log ETH 1 trading days lag") + 
-  ylab("log Bitcoin closing") + 
-  stat_smooth(method = 'lm', col = 'red') + 
-  labs(title = paste("Adj R2=", signif(summary(fit1)$adj.r.squared, 5),
-                     "Inc=", signif(fit1$coef[[1]], 5),
-                     "Slp=", signif(fit1$coef[[2]], 5),
-                     "P=", signif(summary(fit1)$coef[2,4], 5)
-                     )
-       )
-```
-```{r lm_log_4plots, echo=TRUE, warning=FALSE}
-autoplot(fit1)
-```
 
 ```{r stepwise_caret}
 library(caret)
 # train control divided data to 5 equal sets for validation use
+set.seed(20)
 train.control <- trainControl(method = "cv", number = 5, p = 0.7)
-# save 2021 Sep and Octo for prediction
-df_selected_test <- df_selected[df_selected['date'] >= '2021-09-01',]
-df_selected_train <- df_selected[df_selected['date'] < '2021-09-01',]
+# save 2021 Sep and Oct for prediction
+df_selected_train <- na.omit(df_selected[df_selected['date'] < '2021-09-01',])
+df_selected_test <- na.omit(df_selected[df_selected['date'] >= '2021-09-01',])
 # use the lag day data variable picked
-set.seed(1)
 step.model <- train(BTC.USD.Close ~ .,
                     data = na.omit(subset(df_selected_train,
                                           select=c(BTC.USD.Close,
@@ -385,20 +361,19 @@ step.model <- train(BTC.USD.Close ~ .,
 step.model
 summary(step.model$finalModel)
 step.model$bestTune
-#step.model$bestTune
+# best model
 coef(step.model$finalModel, 3)
 ```
 
 ```{r model_replicate}
-set.seed(1)
 besttune_lm <- train(BTC.USD.Close ~ .,
                      data = na.omit(subset(df_selected_train,
                                            select=c(BTC.USD.Close,
                                                     BTC_TDlag_1,
                                                     ETH_TDlag_1,
-                                                    #IXIC_TDlag_40,
+                                                    IXIC_TDlag_40)
                                                     #GOLD_TDlag_60,
-                                                    TSM_TDlag_40)
+                                                    #TSM_TDlag_40)
                                            )
                                     ),
                      method = "lm",
@@ -427,14 +402,15 @@ autoplot(besttune_lm$finalModel)
 ```
 
 ``` {r model_VIF}
+# not in use since VIF not over 10
 besttune_lm_VIF <- train(BTC.USD.Close ~ .,
                          data = na.omit(subset(df_selected_train,
                                                select=c(BTC.USD.Close,
-                                                        #BTC_TDlag_1,
-                                                        ETH_TDlag_1,
+                                                        BTC_TDlag_1,
+                                                        ETH_TDlag_1)
                                                         #IXIC_TDlag_40,
                                                         #GOLD_TDlag_60,
-                                                        TSM_TDlag_40)
+                                                        #TSM_TDlag_40)
                                                )
                                         ),
                     method = "lm",
@@ -449,23 +425,21 @@ deviance(besttune_lm_VIF$finalModel)
 ```
 
 ```{r besttune_lm_VIF_RMSE}
+# not in use since VIF not over 10
 prediction <- predict(besttune_lm_VIF$finalModel, df_selected_test)
-
 # RMSE
 RMSE = sqrt(mean((prediction - df_selected_test$BTC.USD.Close)^2, na.rm = TRUE))
 RMSE/(mean(df_selected_test$BTC.USD.Close))
 ```
 
 ```{r besttune_lm_VIF_4plots}
+# not in use since VIF not over 10
 # 4 plots
 autoplot(besttune_lm_VIF$finalModel)
 ```
 
 ## Lasso
 ```{r data_cutoff}
-df_selected_train <- na.omit(df_selected[df_selected['date'] < '2021-09-01',])
-df_selected_test <- na.omit(df_selected[df_selected['date'] >= '2021-09-01',])
-
 # target variable
 y <- df_selected_train$BTC.USD.Close
 # matrix of predictor variables
@@ -520,6 +494,7 @@ coef(best_model)
 ```
 
 ```{r Lasso_predict}
+# use data after 2021-09-01
 x2 <- data.matrix(df_selected_test[, c('BTC_TDlag_1',
                                        'BTC_TDlag_5',
                                        'BTC_TDlag_10',
@@ -556,8 +531,10 @@ predict(best_model, s = best_lambda, newx = x2)
 ```{r Lasso_evaluation}
 # use fitted best model to make predictions
 y_predicted <- predict(best_model, s = best_lambda, newx = x2)
+
 # target variable
 y2 <- df_selected_test$BTC.USD.Close
+
 # find SST and SSE
 sst <- sum((y - mean(y2))^2)
 sse <- sum((y_predicted - y2)^2)
@@ -565,5 +542,4 @@ sse <- sum((y_predicted - y2)^2)
 # find R-Squared
 rsq <- 1 - sse/sst
 rsq
-
 ```
