@@ -11,50 +11,6 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Loading data from Yahoo Finance and Kaggle
-Before we starting working on building models and analysis, data need to be loaded from Yahoo Finance and Kaggle API. In our project, we will be collecting:
-
-Coins (to US dollar)
-
-* BTC-USD: Bitcoin
-
-* ETH-USD: Ethereum
-
-* ADA-USD: Cardano
-
-* DOGE-USD: Dogecoin
-
-* SHIB-USD: Shiba Inu coin
-
-Index
-
-* ^DJI: Dow Jones Industrial
-
-* ^IXIC: Nasdaq Composite
-
-* ^GSPC: S&P 500
-
-* GC=F: Gold
-
-Stocks
-
-* TSLA: Tesla
-
-* GOOG: Google
-
-* AAPL: Apple
-
-* NVDA: Nvidia
-
-* AMD: Advanced Micro Devices
-
-* TSM: Taiwan Semiconductor Manufacturing
-
-All the data mentioned above will be saved as `xts` (Extensible Time Series) object.
-
-Twitter count
-
-* Tweet_volume: number of #bitcoin tweeted
 ```{r yahoo, message=FALSE, warning=FALSE}
 rm(list=ls())
 library(zoo)
@@ -144,7 +100,7 @@ df_TSM = data.frame(date=index(TSM), coredata(TSM))
 # tweet
 df_tweet = tweet_volume
 ```
-## EDA
+
 
 ```{r EDA_data_merge}
 # merge all data into one dataset
