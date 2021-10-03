@@ -359,32 +359,6 @@ ggplot(df_selected, aes(x = x_value1, y = y_value1)) +
 autoplot(fit1)
 ```
 
-
-```{r SLR_sampling}
-# sampling train, validation and test sets (if using stepwise this step could be ignored)
-trainset_size <- floor(0.7 * nrow(df_selected))
-validation_size <- floor(0.1 * nrow(df_selected))
-testset_size <- floor(0.2 * nrow(df_selected))
-trainset_indices <- sample(seq_len(nrow(df_selected)), size = trainset_size)
-trainset <- df_selected[trainset_indices, ]
-df_set <- df_selected[-trainset_indices, ]
-testset_indices <- sample(seq_len(nrow(df_set)), size = testset_size)
-testset <- df_set[testset_indices, ]
-validationset <- df_set[-testset_indices,]
-```
-
-```{r SLR_logxlogy_modelling}
-lm_ETH = lm(formula = log(BTC.USD.Close) ~ log(ETH_TDlag_1), data = trainset)
-summary(lm_ETH)
-
-testset_selected <- subset(testset, select=c(ETH_TDlag_1,
-                                             BTC.USD.Close))
-ggplot(trainset, aes(x=log(ETH_TDlag_1), y=log(BTC.USD.Close))) + 
-  geom_point() + 
-  geom_point(data=testset_selected,colour='red') + 
-  stat_smooth(method = 'lm', col = 'black') 
-```
-
 ```{r stepwise_caret}
 library(caret)
 # train control divided data to 5 equal sets for validation use
@@ -402,8 +376,8 @@ step.model <- train(BTC.USD.Close ~ .,
                                                    IXIC_TDlag_40,
                                                    GOLD_TDlag_60,
                                                    TSM_TDlag_40)
-                                         )
-                                 ),
+                                          )
+                                   ),
                     method = "leapSeq",#"leapBackward", #"leapSeq", #"leapForward",
                     tuneGrid = data.frame(nvmax = 1:5), # limit model variables
                     trControl = train.control
@@ -427,13 +401,13 @@ besttune_lm <- train(BTC.USD.Close ~ .,
                                                     TSM_TDlag_40)
                                            )
                                     ),
-                    method = "lm",
-                    trControl = train.control
-                    )
+                     method = "lm",
+                     trControl = train.control
+                     )
 
 coef(besttune_lm$finalModel)
 
-car::vif(besttune_lm$finalModel) #VIF BTC greater than 10
+car::vif(besttune_lm$finalModel) #VIF BTC greater than 10 (eliminated)
 
 deviance(besttune_lm$finalModel)
 
@@ -487,6 +461,109 @@ RMSE/(mean(df_selected_test$BTC.USD.Close))
 autoplot(besttune_lm_VIF$finalModel)
 ```
 
+## Lasso
+```{r data_cutoff}
+df_selected_train <- na.omit(df_selected[df_selected['date'] < '2021-09-01',])
+df_selected_test <- na.omit(df_selected[df_selected['date'] >= '2021-09-01',])
 
+# target variable
+y <- df_selected_train$BTC.USD.Close
+# matrix of predictor variables
+x <- data.matrix(df_selected_train[, c('BTC_TDlag_1',
+                                       'BTC_TDlag_5',
+                                       'BTC_TDlag_10',
+                                       'BTC_TDlag_20',
+                                       'BTC_TDlag_40',
+                                       'BTC_TDlag_60',
+                                       'ETH_TDlag_1',
+                                       'ETH_TDlag_5',
+                                       'ETH_TDlag_10',
+                                       'ETH_TDlag_20',
+                                       'ETH_TDlag_40',
+                                       'ETH_TDlag_60',
+                                       'IXIC_TDlag_1',
+                                       'IXIC_TDlag_5',
+                                       'IXIC_TDlag_10',
+                                       'IXIC_TDlag_20',
+                                       'IXIC_TDlag_40',
+                                       'IXIC_TDlag_60',
+                                       'GOLD_TDlag_1',
+                                       'GOLD_TDlag_5',
+                                       'GOLD_TDlag_10',
+                                       'GOLD_TDlag_20',
+                                       'GOLD_TDlag_40',
+                                       'GOLD_TDlag_60',
+                                       'TSM_TDlag_1',
+                                       'TSM_TDlag_5',
+                                       'TSM_TDlag_10',
+                                       'TSM_TDlag_20',
+                                       'TSM_TDlag_40',
+                                       'TSM_TDlag_60')])
+```
 
+```{r Lasso}
+library(glmnet)
+# perform k-fold cross-validation to find optimal lambda value
+cv_model <- cv.glmnet(x, y, alpha = 1)
+# find optimal lambda value that minimizes test MSE
+best_lambda <- cv_model$lambda.min
+best_lambda
+```
+```{r Lasso_plot}
+# produce plot of test MSE by lambda value
+plot(cv_model) 
+```
+```{r Lasso_final}
+# find coefficients of best model
+best_model <- glmnet(x, y, alpha = 1, lambda = best_lambda)
+coef(best_model)
+```
 
+```{r Lasso_predict}
+x2 <- data.matrix(df_selected_test[, c('BTC_TDlag_1',
+                                       'BTC_TDlag_5',
+                                       'BTC_TDlag_10',
+                                       'BTC_TDlag_20',
+                                       'BTC_TDlag_40',
+                                       'BTC_TDlag_60',
+                                       'ETH_TDlag_1',
+                                       'ETH_TDlag_5',
+                                       'ETH_TDlag_10',
+                                       'ETH_TDlag_20',
+                                       'ETH_TDlag_40',
+                                       'ETH_TDlag_60',
+                                       'IXIC_TDlag_1',
+                                       'IXIC_TDlag_5',
+                                       'IXIC_TDlag_10',
+                                       'IXIC_TDlag_20',
+                                       'IXIC_TDlag_40',
+                                       'IXIC_TDlag_60',
+                                       'GOLD_TDlag_1',
+                                       'GOLD_TDlag_5',
+                                       'GOLD_TDlag_10',
+                                       'GOLD_TDlag_20',
+                                       'GOLD_TDlag_40',
+                                       'GOLD_TDlag_60',
+                                       'TSM_TDlag_1',
+                                       'TSM_TDlag_5',
+                                       'TSM_TDlag_10',
+                                       'TSM_TDlag_20',
+                                       'TSM_TDlag_40',
+                                       'TSM_TDlag_60')])
+# use lasso regression model to predict response value
+predict(best_model, s = best_lambda, newx = x2)
+```
+```{r Lasso_evaluation}
+# use fitted best model to make predictions
+y_predicted <- predict(best_model, s = best_lambda, newx = x2)
+# target variable
+y2 <- df_selected_test$BTC.USD.Close
+# find SST and SSE
+sst <- sum((y - mean(y2))^2)
+sse <- sum((y_predicted - y2)^2)
+
+# find R-Squared
+rsq <- 1 - sse/sst
+rsq
+
+```
